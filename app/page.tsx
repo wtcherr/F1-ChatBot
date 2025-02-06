@@ -1,13 +1,14 @@
-"use client";
+"use client"
 
-import Image from "next/image";
-import f1GPTLogo from "./assests/F1.png";
+import Image from "next/image"
+import f1GPTLogo from "./assests/F1.png"
 
-import { useChat } from "ai/react";
-import { Message } from "ai";
-import Bubble from "./components/Bubble";
-import LoadingBubble from "./components/LoadingBubble";
-import PromptSuggestionsRow from "./components/PromptSuggestionsRow";
+import { useChat } from "ai/react"
+import { Message } from "ai"
+
+import Bubble from "./components/Bubble"
+import LoadingBubble from "./components/LoadingBubble"
+import PromptSuggestionsRow from "./components/PromptSuggestionsRow"
 
 const Home = () => {
   const {
@@ -17,16 +18,18 @@ const Home = () => {
     input,
     handleInputChange,
     handleSubmit,
-  } = useChat();
-  const noMessages = !messages || messages.length === 0;
+  } = useChat()
+
+  const noMessages = !messages || messages.length === 0
+
   const handlePromptClick = (promptText) => {
     const msg: Message = {
       id: crypto.randomUUID(),
       content: promptText,
       role: "user",
-    };
-    append(msg);
-  };
+    }
+    append(msg)
+  }
   return (
     <main>
       <Image src={f1GPTLogo} alt="F1 GPT Logo" width={500} />
@@ -40,16 +43,10 @@ const Home = () => {
               accurate and up-to-date information about the world of F1. Start
               chatting now about the thrilling world of Formula One!
             </p>
-            <br />
             <PromptSuggestionsRow onPromptClick={handlePromptClick} />
           </>
         ) : (
-          <>
-            {messages.map((message, index) => (
-              <Bubble key={`message-${index}`} message={message} />
-            ))}
-            {isLoading && <LoadingBubble />}
-          </>
+          <>{isLoading && <LoadingBubble />}</>
         )}
       </section>
       <form onSubmit={handleSubmit}>
@@ -62,7 +59,7 @@ const Home = () => {
         <input type="submit" />
       </form>
     </main>
-  );
-};
+  )
+}
 
-export default Home;
+export default Home
