@@ -5,10 +5,9 @@ import f1GPTLogo from "./assests/F1.png"
 
 import { useChat } from "ai/react"
 import { Message } from "ai"
-
-import Bubble from "./components/Bubble"
 import LoadingBubble from "./components/LoadingBubble"
 import PromptSuggestionsRow from "./components/PromptSuggestionsRow"
+import Bubble from "./components/Bubble"
 
 const Home = () => {
   const {
@@ -46,7 +45,12 @@ const Home = () => {
             <PromptSuggestionsRow onPromptClick={handlePromptClick} />
           </>
         ) : (
-          <>{isLoading && <LoadingBubble />}</>
+          <>
+            {messages.map((message) => (
+              <Bubble key={message.id} message={message} />
+            ))}
+            {isLoading && <LoadingBubble />}
+          </>
         )}
       </section>
       <form onSubmit={handleSubmit}>

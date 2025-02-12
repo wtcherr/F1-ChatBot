@@ -34,7 +34,8 @@ section.populated {
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  overflow: scroll;
+  overflow-y: scroll;
+  overflow-x: hidden;
 }
 
 .starter-text {

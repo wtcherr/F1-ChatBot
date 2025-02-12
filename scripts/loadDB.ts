@@ -1,20 +1,24 @@
 import { DataAPIClient } from "@datastax/astra-db-ts"
 import { PuppeteerWebBaseLoader } from "@langchain/community/document_loaders/web/puppeteer"
-import OpenAI from "openai"
+import { pipeline } from "@huggingface/transformers"
 
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter"
 
 import "dotenv/config"
+
+const embedModel = "BAAI/bge-large-en-v1.5"
+const embedDim = 1024
+const batchSize = 128
+const chunkSize = 1024
+const chunkOverlap = 128
+
 type SimilarityMetric = "dot_product" | "cosine" | "euclidean"
 const {
   ASTRA_DB_NAMESPACE,
   ASTRA_DB_COLLECTION,
   ASTRA_DB_API_ENDPOINT,
   ASTRA_DB_APPLICATION_TOKEN,
-  OPENAI_API_KEY,
 } = process.env
-
-const openai = new OpenAI({ apiKey: OPENAI_API_KEY })
 
 const f1Data = [
   "https://www.formula1.com/en/racing/2024",
@@ -32,40 +36,66 @@ const client = new DataAPIClient(ASTRA_DB_APPLICATION_TOKEN)
 const db = client.db(ASTRA_DB_API_ENDPOINT, { namespace: ASTRA_DB_NAMESPACE })
 
 const splitter = new RecursiveCharacterTextSplitter({
-  chunkSize: 512,
-  chunkOverlap: 100,
+  chunkSize: chunkSize,
+  chunkOverlap: chunkOverlap,
 })
 
 const createCollection = async (
   similarityMetric: SimilarityMetric = "dot_product"
 ) => {
-  const res = await db.createCollection(ASTRA_DB_COLLECTION, {
-    vector: {
-      dimension: 1536,
-      metric: similarityMetric,
-    },
-  })
-  console.log(res)
+  try {
+    // Attempting to get the collection
+    await db.collection(ASTRA_DB_COLLECTION)
+    await db.dropCollection(ASTRA_DB_COLLECTION)
+  } finally {
+    // Now, create the collection with vector configuration
+    const resCreate = await db.createCollection(ASTRA_DB_COLLECTION, {
+      vector: {
+        dimension: embedDim,
+        metric: similarityMetric,
+      },
+    })
+    console.log(resCreate)
+  }
 }
 
 const loadSampleData = async () => {
   const collection = await db.collection(ASTRA_DB_COLLECTION)
+  const extractor = await pipeline("feature-extraction", embedModel, {
+    device: "gpu",
+  })
+  console.log("Extractor found!")
   for await (const url of f1Data) {
     const content = await scrapePage(url)
     const chunks = await splitter.splitText(content)
-    for await (const chunk of chunks) {
-      const embedding = await openai.embeddings.create({
-        model: "text-embedding-3-small",
-        input: chunk,
-        encoding_format: "float",
-      })
-      const vector = embedding.data[0].embedding
+    let batch = [] // Initialize an empty array to hold batches of processed chunks
+    for (let i = 0; i < chunks.length; i++) {
+      batch.push(chunks[i])
 
-      const res = await collection.insertOne({
-        $vector: vector,
-        text: chunk,
-      })
-      console.log(res)
+      if ((i + 1) % batchSize === 0 || i === chunks.length - 1) {
+        const embeddings = await extractor(batch, {
+          pooling: "mean",
+          normalize: true,
+        })
+        // Create an array of objects with vector and text properties
+        const vectorsAndTexts = []
+
+        const numChunks = embeddings.dims[0]
+
+        for (let j = 0; j < numChunks; j++) {
+          // Extract the embedding vector for the j-th chunk
+          const startIdx = j * embedDim
+          const endIdx = startIdx + embedDim
+          const embedding = embeddings.data.slice(startIdx, endIdx)
+          vectorsAndTexts.push({
+            $vector: Array.from(embedding),
+            text: batch[j],
+          })
+        }
+        await collection.insertMany(vectorsAndTexts)
+        // Reset the batch for next set of chunks
+        batch = []
+      }
     }
   }
 }
@@ -78,7 +108,7 @@ const scrapePage = async (url: string) => {
       waitUntil: "domcontentloaded",
     },
     evaluate: async (page, browser) => {
-      const result = await page.evaluate(() => document.body.innerHTML)
+      const result = await page.evaluate(() => document.body.innerText)
       await browser.close()
       return result
     },
