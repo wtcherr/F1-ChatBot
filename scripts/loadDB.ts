@@ -9,7 +9,7 @@ import "dotenv/config"
 const embedModel = "BAAI/bge-large-en-v1.5"
 const embedDim = 1024
 const batchSize = 128
-const chunkSize = 1024
+const chunkSize = 512
 const chunkOverlap = 128
 
 type SimilarityMetric = "dot_product" | "cosine" | "euclidean"
@@ -76,27 +76,32 @@ const loadSampleData = async () => {
       batch.push(chunks[i])
 
       if ((i + 1) % batchSize === 0 || i === chunks.length - 1) {
-        const embeddings = await extractor(batch, {
-          pooling: "mean",
-          normalize: true,
-        })
-        // Create an array of objects with vector and text properties
-        const vectorsAndTexts = []
-
-        const numChunks = embeddings.dims[0]
-
-        for (let j = 0; j < numChunks; j++) {
-          // Extract the embedding vector for the j-th chunk
-          const startIdx = j * embedDim
-          const endIdx = startIdx + embedDim
-          const embedding = embeddings.data.slice(startIdx, endIdx)
-          vectorsAndTexts.push({
-            $vector: Array.from(embedding),
-            text: batch[j],
+        try {
+          const embeddings = await extractor(batch, {
+            pooling: "mean",
+            normalize: true,
           })
+
+          // Create an array of objects with vector and text properties
+          const vectorsAndTexts = []
+
+          const numChunks = embeddings.dims[0]
+
+          for (let j = 0; j < numChunks; j++) {
+            // Extract the embedding vector for the j-th chunk
+            const startIdx = j * embedDim
+            const endIdx = startIdx + embedDim
+            const embedding = embeddings.data.slice(startIdx, endIdx)
+            vectorsAndTexts.push({
+              $vector: Array.from(embedding),
+              text: batch[j],
+            })
+          }
+          await collection.insertMany(vectorsAndTexts)
+          // Reset the batch for next set of chunks
+        } catch (e) {
+          console.log(e)
         }
-        await collection.insertMany(vectorsAndTexts)
-        // Reset the batch for next set of chunks
         batch = []
       }
     }

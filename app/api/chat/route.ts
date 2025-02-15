@@ -27,11 +27,10 @@ export async function POST(req: Request) {
     let docContext = ""
 
     const embeddingInference = new HfInference(HUGGINGFACE_INFERENCE_TOKEN)
-    const embedResult = await embeddingInference.featureExtraction({
+    const embedResult = (await embeddingInference.featureExtraction({
       model: embedModelID,
       inputs: latestMessage,
-    })
-
+    })) as number[]
     try {
       const collection = await db.collection(ASTRA_DB_COLLECTION)
       const cursor = collection.find(null, {
