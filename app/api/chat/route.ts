@@ -1,7 +1,17 @@
 import { DataAPIClient } from "@datastax/astra-db-ts"
+import { HfInference, ChatCompletionStreamOutput } from "@huggingface/inference"
+import { ChatLlamaCpp } from "@langchain/community/chat_models/llama_cpp"
+import {
+  streamText,
+  createDataStreamResponse,
+  AIStream,
+  streamObject,
+  pipeDataStreamToResponse,
+} from "ai"
+import { openai } from "@ai-sdk/openai"
 import { LangChainAdapter } from "ai"
-import { ChatOllama } from "@langchain/ollama"
-import { HfInference } from "@huggingface/inference"
+import { ChatOpenAI } from "@langchain/openai"
+import { Readable } from "stream"
 
 const {
   ASTRA_DB_NAMESPACE,
@@ -14,7 +24,12 @@ const {
 const client = new DataAPIClient(ASTRA_DB_APPLICATION_TOKEN)
 const db = client.db(ASTRA_DB_API_ENDPOINT, { namespace: ASTRA_DB_NAMESPACE })
 
-const embedModel = "BAAI/bge-large-en-v1.5"
+const embedModelID = "BAAI/bge-large-en-v1.5"
+const genModelID = ""
+
+export const runtime = "edge" // Ensure this API route runs on the Edge runtime
+// Allow streaming responses up to 60 seconds
+export const maxDuration = 60
 
 export async function POST(req: Request) {
   try {
@@ -23,21 +38,12 @@ export async function POST(req: Request) {
 
     let docContext = ""
 
-    /* const extractor = await pipeline("feature-extraction", embedModel, {
-      device: "gpu",
-    })
-
-    const embedding = await extractor([latestMessage], {
-      pooling: "mean",
-      normalize: true,
-    }) */
-
     const embeddingInference = new HfInference(HUGGINGFACE_INFERENCE_TOKEN)
     const embedResult = await embeddingInference.featureExtraction({
-      model: embedModel,
+      model: embedModelID,
       inputs: latestMessage,
     })
-    console.log(embedResult)
+
     try {
       const collection = await db.collection(ASTRA_DB_COLLECTION)
       const cursor = collection.find(null, {
@@ -59,7 +65,7 @@ export async function POST(req: Request) {
       role: "system",
       content: `
     You are an AI assistant who knows everything about Formula One. Use the below context to augment what you know about Formula One Racing. The context will provide you with the most recent page data from wikipedia, the official F1 website and others.
-    If the context doesn't include the information you need answer based on your existing knowledge and don't mention the source of your information or what the context does or doesn't include. Format responses using markdown where applicable and don't return images.
+    If the context doesn't include the information you need, answer based on your existing knowledge and don't mention the source of your information. Also, don't mention what the context. Format responses using markdown where applicable and don't return images.
     ------------------
     START CONTEXT
     ${docContext}
@@ -69,11 +75,58 @@ export async function POST(req: Request) {
     ------------------
 	`,
     }
-    const ollamaModel = new ChatOllama({
-      model: "llama3:latest",
+
+    const generationInference = new HfInference(HUGGINGFACE_INFERENCE_TOKEN)
+    /* const stream = generationInference.chatCompletionStream({
+      model: genModelID,
+      inputs: [template, ...messages],
+    }) */
+    const stream = generationInference.chatCompletionStream({
+      model: "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "Who is 2023 formula 1 champion?",
+            },
+          ],
+        },
+      ],
+      max_tokens: 100,
     })
-    const stream = await ollamaModel.stream([template, ...messages])
-    return LangChainAdapter.toDataStreamResponse(stream)
+
+    return createDataStreamResponse({
+      status: 200,
+      statusText: "OK",
+      headers: {
+        contentType: "text/plain; charset=utf-8",
+        dataStreamVersion: "v1",
+      },
+      execute: async (dataStream) => {
+        const readableStream = new ReadableStream({
+          async start(controller) {
+            for await (const chunk of stream) {
+              console.log("Chunk:", chunk) // Debugging: Log each chunk
+              if (chunk.choices && chunk.choices.length > 0) {
+                const content = chunk.choices[0].delta.content
+                if (content) {
+                  controller.enqueue(new TextEncoder().encode(content))
+                }
+              }
+            }
+            controller.close()
+          },
+        })
+
+        dataStream.merge(readableStream)
+      },
+      onError: (error) => {
+        console.error("Error during streaming:", error)
+        return "An error occurred while processing your request."
+      },
+    })
   } catch (err) {
     console.log(err)
   }

@@ -30,6 +30,9 @@ const f1Data = [
   "https://en.wikipedia.org/wiki/2023_Formula_One_World_Championship",
   "https://en.wikipedia.org/wiki/2022_Formula_One_World_Championship",
   "https://en.wikipedia.org/wiki/List_of_Formula_One_World_Drivers%27_Champions",
+  "https://www.skysports.com/f1/news/12433/13061245/lewis-hamilton-to-join-ferrari-for-2025-formula-1-season",
+  "https://www.formula1.com/en/latest/tags/driver-market.48p0PATNawKYyi0QueUwyS",
+  "https://www.formula1.com/en/latest/article/2025-f1-grid-all-the-driver-and-team-line-ups-confirmed-so-far.7yijhWBNHjqKwHTRFEMZUa",
 ]
 
 const client = new DataAPIClient(ASTRA_DB_APPLICATION_TOKEN)

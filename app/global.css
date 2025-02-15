@@ -25,17 +25,15 @@ main {
   text-align: center;
   color: #383838;
 }
+
 section {
   width: 100%;
-}
-
-section.populated {
-  height: 100%;
-  display: flex;
+  height: calc(
+    100% - 70px
+  ); /* Adjust this value to account for the form height */
+  overflow-y: scroll; /* Enable vertical scrolling */
   flex-direction: column;
   justify-content: flex-end;
-  overflow-y: scroll;
-  overflow-x: hidden;
 }
 
 .starter-text {
@@ -49,7 +47,6 @@ form {
   border-top: #828282 solid 2px;
   padding-top: 20px;
   border-radius: 0 0 10px 10px;
-  overflow: hidden;
 }
 
 input.question-box {
@@ -68,9 +65,11 @@ input[type="submit"] {
   border: none;
   background-color: #411b8d;
 }
+
 input:focus {
   outline: none;
 }
+
 .bubble {
   margin: 8px;
   padding: 8px;
@@ -81,15 +80,18 @@ input:focus {
   width: 80%;
   text-align: left;
 }
+
 .bubble.user {
   border-radius: 20px 20px 0 20px;
   background-color: #e1f4ffff;
   margin-left: auto;
 }
+
 .bubble.assistant {
   border-radius: 20px 20px 20px 0;
   background-color: #dce7ff;
 }
+
 .prompt-suggestion-row {
   width: 100%;
 }
@@ -113,7 +115,6 @@ input:focus {
       0% 50%,
     no-repeat radial-gradient(circle closest-side, #383838 90%, #0000) 50% 50%,
     no-repeat radial-gradient(circle closest-side, #383838 90%, #0000) 100% 50%;
-
   background-size: calc(100% / 3) 100%;
   animation: loading 1s infinite linear;
 }
