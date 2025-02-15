@@ -16,7 +16,6 @@ const db = client.db(ASTRA_DB_API_ENDPOINT, { namespace: ASTRA_DB_NAMESPACE })
 const embedModelID = "BAAI/bge-large-en-v1.5"
 const genModelID = "meta-llama/Llama-3.2-3B-Instruct"
 
-export const runtime = "edge" // Ensure this API route runs on the Edge runtime
 export const maxDuration = 60 // Allow streaming responses up to 60 seconds
 
 export async function POST(req: Request) {
