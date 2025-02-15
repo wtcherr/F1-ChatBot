@@ -1,17 +1,6 @@
 import { DataAPIClient } from "@datastax/astra-db-ts"
-import { HfInference, ChatCompletionStreamOutput } from "@huggingface/inference"
-import { ChatLlamaCpp } from "@langchain/community/chat_models/llama_cpp"
-import {
-  streamText,
-  createDataStreamResponse,
-  AIStream,
-  streamObject,
-  pipeDataStreamToResponse,
-} from "ai"
-import { openai } from "@ai-sdk/openai"
-import { LangChainAdapter } from "ai"
-import { ChatOpenAI } from "@langchain/openai"
-import { Readable } from "stream"
+import { HfInference } from "@huggingface/inference"
+import { formatDataStreamPart } from "ai"
 
 const {
   ASTRA_DB_NAMESPACE,
@@ -25,11 +14,10 @@ const client = new DataAPIClient(ASTRA_DB_APPLICATION_TOKEN)
 const db = client.db(ASTRA_DB_API_ENDPOINT, { namespace: ASTRA_DB_NAMESPACE })
 
 const embedModelID = "BAAI/bge-large-en-v1.5"
-const genModelID = ""
+const genModelID = "meta-llama/Llama-3.2-3B-Instruct"
 
 export const runtime = "edge" // Ensure this API route runs on the Edge runtime
-// Allow streaming responses up to 60 seconds
-export const maxDuration = 60
+export const maxDuration = 60 // Allow streaming responses up to 60 seconds
 
 export async function POST(req: Request) {
   try {
@@ -75,59 +63,35 @@ export async function POST(req: Request) {
     ------------------
 	`,
     }
-
     const generationInference = new HfInference(HUGGINGFACE_INFERENCE_TOKEN)
-    /* const stream = generationInference.chatCompletionStream({
-      model: genModelID,
-      inputs: [template, ...messages],
-    }) */
     const stream = generationInference.chatCompletionStream({
-      model: "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: "Who is 2023 formula 1 champion?",
-            },
-          ],
-        },
-      ],
-      max_tokens: 100,
+      model: genModelID,
+      messages: [template, ...messages],
     })
-
-    return createDataStreamResponse({
-      status: 200,
-      statusText: "OK",
-      headers: {
-        contentType: "text/plain; charset=utf-8",
-        dataStreamVersion: "v1",
-      },
-      execute: async (dataStream) => {
-        const readableStream = new ReadableStream({
-          async start(controller) {
-            for await (const chunk of stream) {
-              console.log("Chunk:", chunk) // Debugging: Log each chunk
-              if (chunk.choices && chunk.choices.length > 0) {
-                const content = chunk.choices[0].delta.content
-                if (content) {
-                  controller.enqueue(new TextEncoder().encode(content))
-                }
-              }
+    const readableStream = new ReadableStream({
+      async start(controller) {
+        for await (const chunk of stream) {
+          if (chunk.choices && chunk.choices.length > 0) {
+            const content = chunk.choices[0].delta.content
+            if (content) {
+              // Serialize the StreamPart to JSON and enqueue it
+              controller.enqueue(
+                new TextEncoder().encode(formatDataStreamPart("text", content))
+              )
             }
-            controller.close()
-          },
-        })
-
-        dataStream.merge(readableStream)
-      },
-      onError: (error) => {
-        console.error("Error during streaming:", error)
-        return "An error occurred while processing your request."
+          }
+        }
+        controller.close()
       },
     })
+    return new Response(readableStream)
   } catch (err) {
-    console.log(err)
+    console.error(err)
+    return new Response(JSON.stringify({ error: "Internal Server Error" }), {
+      status: 500,
+      headers: {
+        "Content-Type": "application/json",
+      },
+    })
   }
 }

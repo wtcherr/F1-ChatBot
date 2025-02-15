@@ -17,7 +17,11 @@ const Home = () => {
     input,
     handleInputChange,
     handleSubmit,
-  } = useChat()
+  } = useChat({
+    onError: (error) => {
+      console.log(error)
+    },
+  })
 
   const noMessages = !messages || messages.length === 0
 
