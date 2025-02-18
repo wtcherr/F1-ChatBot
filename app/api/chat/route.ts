@@ -23,21 +23,12 @@ export async function POST(req: Request) {
 
     let docContext = ""
 
-    /* const extractor = await pipeline("feature-extraction", embedModel, {
-      device: "gpu",
-    })
-
-    const embedding = await extractor([latestMessage], {
-      pooling: "mean",
-      normalize: true,
-    }) */
-
     const embeddingInference = new HfInference(HUGGINGFACE_INFERENCE_TOKEN)
-    const embedResult = await embeddingInference.featureExtraction({
+    const embedResult = (await embeddingInference.featureExtraction({
       model: embedModel,
       inputs: latestMessage,
-    })
-    console.log(embedResult)
+    })) as number[]
+
     try {
       const collection = await db.collection(ASTRA_DB_COLLECTION)
       const cursor = collection.find(null, {
